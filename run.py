@@ -64,14 +64,17 @@ class KernelStorage(DBConnection):
             rows = cursor.fetchall()
             print "Loading "+str(len(rows))+" invocation(s).."
             for row in rows:
-                self.cursor.execute("""insert into Kernels(registersPerThread,avgTime,gridX,gridY,gridZ,
-                                                blockX,blockY,blockZ,staticSharedMemory,dynamicSharedMemory,
-                                                name,application) values (?,?,?,?,?,?,?,?,?,?,?,?)""",
-                                    (row['registersPerThread'],str(int(row['end'])-int(row['start'])),
-                                     row['gridX'],row['gridY'],row['gridZ'],row['blockX'],
-                                     row['blockY'],row['blockZ'],row['staticSharedMemory'],
-                                     row['dynamicSharedMemory'],row['value'],app_id))
-                self.connection.commit()
+                try:
+                    self.cursor.execute("""insert into Kernels(registersPerThread,avgTime,gridX,gridY,gridZ,
+                                                    blockX,blockY,blockZ,staticSharedMemory,dynamicSharedMemory,
+                                                    name,application) values (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                        (row['registersPerThread'],str(int(row['end'])-int(row['start'])),
+                                         row['gridX'],row['gridY'],row['gridZ'],row['blockX'],
+                                         row['blockY'],row['blockZ'],row['staticSharedMemory'],
+                                         row['dynamicSharedMemory'],row['value'],app_id))
+                    self.connection.commit()
+                except sqlite3.Error as er:
+                    print 'Error: ' + er.message + ", kernel" + row['value']
             self.cursor.close()
 
             cursor.close()
