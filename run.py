@@ -39,7 +39,7 @@ class ApplicationRunner(DBConnection):
             p = Popen(nvprof_cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True)
             output, errors = p.communicate()
 
-            if p.returncode or errors:
+            if p.returncode: #or errors:
                 print errors
             else:
                 db_list.append((db_name,row['_id_']))
@@ -47,20 +47,26 @@ class ApplicationRunner(DBConnection):
         self.cursor.close()
         return db_list
 
-class KernelStorage:
+class KernelStorage(DBConnection):
     def save(self):
         runner = ApplicationRunner()
         db_list = runner.run()
+        print "Loading "+str(len(db_list))+" database(s).."
 
         for (db,app_id) in db_list:
+            print "Connecting to DB: "+db
             connection = sqlite3.connect(db)
             connection.row_factory = sqlite3.Row
             cursor = connection.cursor()
             cursor.execute("select * from CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL as CK inner join StringTable as ST where ST._id_=CK.name;")
 
             self.cursor = self.connection.cursor()
-            for row in cursor.fetchall():
-                self.cursor.execute("insert into Kernels(registersPerThread,avgTime,gridX,gridY,gridZ,blockX,blockY,blockZ,staticSharedMemory,dynamicSharedMemory,name,application) values (?,?,?,?,?,?,?,?,?,?,?,?)",
+            rows = cursor.fetchall()
+            print "Loading "+str(len(rows))+" invocation(s).."
+            for row in rows:
+                self.cursor.execute("""insert into Kernels(registersPerThread,avgTime,gridX,gridY,gridZ,
+                                                blockX,blockY,blockZ,staticSharedMemory,dynamicSharedMemory,
+                                                name,application) values (?,?,?,?,?,?,?,?,?,?,?,?)""",
                                     (row['registersPerThread'],str(int(row['end'])-int(row['start'])),
                                      row['gridX'],row['gridY'],row['gridZ'],row['blockX'],
                                      row['blockY'],row['blockZ'],row['staticSharedMemory'],
