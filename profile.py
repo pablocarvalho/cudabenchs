@@ -89,9 +89,6 @@ class KernelStorage(DBConnection):
             cursor.close()
             connection.close()
 
-#storage = KernelStorage()
-#storage.save()
-
 class Runner(threading.Thread):
     def __init__(self):
         self.stdout = None
@@ -104,21 +101,7 @@ class Runner(threading.Thread):
 
 class ConcurrentRunner(DBConnection):
     def run(self):
-        cursor1 = self.connection.cursor()
-        cursor2 = self.connection.cursor()
-
-        cursor1.execute("select K.name,App.binary,App.parameters from Kernels as K inner join Application as App where K.application = App._id_ and K.ranking<6 and K.cluster=1;")
-        cursor2.execute("select K.name,App.binary,App.parameters from Kernels as K inner join Application as App where K.application = App._id_ and K.ranking<6 and K.cluster=2;")
-
-        rows1 = cursor1.fetchall()
-        rows2 = cursor2.fetchall()
-
-        print "Got " + str(len(rows1)) + " <- -> " + str(len(rows2))
-        for row1 in rows1:
-            for row2 in rows2:
-                print "Running: " + row1['name'] + " with " + row2['name']
-
-        """app1 = Runner()
+        app1 = Runner()
         app2 = Runner()
         app1.start();
         app2.start();
@@ -126,6 +109,8 @@ class ConcurrentRunner(DBConnection):
         app2.join()
 
         print app1.stdout
-        print app2.stdout"""
+        print app2.stdout
+
+
 runner = ConcurrentRunner()
 runner.run()
