@@ -1,4 +1,8 @@
 from pynvml import *
+import logging
+
+log = logging.getLogger(__name__)
+logging.basicConfig(filename='kernel-runner.log',level=logging.INFO, format="%(asctime)s - %(name)s (%(lineno)s) - %(levelname)s: %(message)s", datefmt='%Y.%m.%d %H:%M:%S')
 
 from subprocess import Popen, PIPE, STDOUT
 import os
@@ -36,6 +40,7 @@ class ApplicationRunner(DBConnection):
             cmd = os.environ[row['environment']] + row["binary"] + " " + (row["parameters"] or " ")
             db_name = format_name(get_device_name(device_idx)) + "_" + format_name(row['name']) + "_" + format_name(row["title"]) + ".db"
             nvprof_cmd = os.environ["CUDA_DIR"] + "bin/nvprof -o " + db_name + " " + cmd
+            log.info("Calling: "+nvprof_cmd)
             p = Popen(nvprof_cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True)
             output, errors = p.communicate()
 
@@ -74,7 +79,7 @@ class KernelStorage(DBConnection):
                                          row['dynamicSharedMemory'],row['value'],app_id))
                     self.connection.commit()
                 except sqlite3.Error as er:
-                    print 'Error: ' + er.message + ", kernel" + row['value']
+                    log.warning(er.message + ", kernel" + row['value'])
             self.cursor.close()
 
             cursor.close()
