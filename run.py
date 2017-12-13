@@ -29,13 +29,16 @@ class ApplicationRunner:
         db_list = []
 
         for row in self.cursor.fetchall():
-            print(os.environ[row['environment']],row["binary"],row["parameters"])
             cmd = os.environ[row['environment']] + row["binary"] + " " + row["parameters"]
             db_name = format_name(get_device_name(device_idx)) + "_" + format_name(row['name']) + "_" + format_name(row["title"]) + ".db"
             nvprof_cmd = os.environ["CUDA_DIR"] + "bin/nvprof -o " + db_name + " " + cmd
-            p = Popen(nvprof_cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=None, close_fds=True)
-            db_list.append((db_name,row['_id_']))
-            print p.stdout.read()
+            p = Popen(nvprof_cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True)
+            output, errors = p.communicate()
+
+            if p.returncode or errors:
+                print errors
+            else:
+                db_list.append((db_name,row['_id_']))
 
         self.cursor.close()
         return db_list
