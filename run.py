@@ -37,6 +37,7 @@ class ApplicationRunner(DBConnection):
         db_list = []
 
         for row in self.cursor.fetchall():
+            print "Profiling "+row['name']+" .."
             cmd = os.environ[row['environment']] + row["binary"] + " " + (row["parameters"] or " ")
             db_name = format_name(get_device_name(device_idx)) + "_" + format_name(row['name']) + "_" + format_name(row["title"]) + ".db"
             nvprof_cmd = os.environ["CUDA_DIR"] + "bin/nvprof -o " + db_name + " " + cmd
