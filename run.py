@@ -16,12 +16,16 @@ def get_device_name(idx):
     nvmlShutdown()
     return name
 
-class ApplicationRunner:
+class DBConnection:
     def __init__(self):
         self.connection = sqlite3.connect('kernels.db')
         self.connection.row_factory = sqlite3.Row
         self.cursor = None
 
+    def __del__(self):
+        self.connection.close()
+
+class ApplicationRunner(DBConnection):
     def run(self):
         self.cursor = self.connection.cursor()
         self.cursor.execute("select * from Application as App inner join Benchmark as BM where App.benchmark = BM._id_")
@@ -43,15 +47,7 @@ class ApplicationRunner:
         self.cursor.close()
         return db_list
 
-    def __del__(self):
-        self.connection.close()
-
 class KernelStorage:
-    def __init__(self):
-        self.connection = sqlite3.connect('kernels.db')
-        self.connection.row_factory = sqlite3.Row
-        self.cursor = None
-
     def save(self):
         runner = ApplicationRunner()
         db_list = runner.run()
@@ -74,9 +70,6 @@ class KernelStorage:
 
             cursor.close()
             connection.close()
-
-    def __del__(self):
-        self.connection.close()
 
 storage = KernelStorage()
 storage.save()
