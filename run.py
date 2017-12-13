@@ -93,13 +93,17 @@ class KernelStorage(DBConnection):
 #storage.save()
 
 class Runner(threading.Thread):
-    def __init__(self):
+    def __init__(self,cmd,env):
         self.stdout = None
         self.stderr = None
         threading.Thread.__init__(self)
+        self.cmd = cmd
+        self.env = env
+        print "CMD: " + self.cmd
+        #print self.env
 
     def run(self):
-        p = subprocess.Popen('/home/rquintanillac/newGitHook/cuHook/a.out',shell=False, stdout=PIPE, stderr=PIPE)
+        p = subprocess.Popen(self.cmd, env=self.env, shell=True, stdout=PIPE, stderr=PIPE)
         self.stdout, self.stderr = p.communicate()
 
 class ConcurrentRunner(DBConnection):
@@ -107,8 +111,8 @@ class ConcurrentRunner(DBConnection):
         cursor1 = self.connection.cursor()
         cursor2 = self.connection.cursor()
 
-        cursor1.execute("select K.name,App.binary,App.parameters from Kernels as K inner join Application as App where K.application = App._id_ and K.ranking<6 and K.cluster=1;")
-        cursor2.execute("select K.name,App.binary,App.parameters from Kernels as K inner join Application as App where K.application = App._id_ and K.ranking<6 and K.cluster=2;")
+        cursor1.execute("select K.name,B.environment,App.binary,App.parameters from Kernels as K inner join Application as App on K.application = App._id_ and K.ranking<6 and K.cluster=1 inner join Benchmark as B on App.benchmark=B._id_;")
+        cursor2.execute("select K.name,B.environment,App.binary,App.parameters from Kernels as K inner join Application as App on K.application = App._id_ and K.ranking<6 and K.cluster=2 inner join Benchmark as B on App.benchmark=B._id_;")
 
         rows1 = cursor1.fetchall()
         rows2 = cursor2.fetchall()
@@ -118,14 +122,25 @@ class ConcurrentRunner(DBConnection):
             for row2 in rows2:
                 print "Running: " + row1['name'] + " with " + row2['name']
 
-        """app1 = Runner()
-        app2 = Runner()
-        app1.start();
-        app2.start();
-        app1.join()
-        app2.join()
+                env1 = os.environ.copy()
+                env2 = os.environ.copy()
+                env1['LD_PRELOAD'] = "./cuHook/libcuhook.so.0"
+                env2['LD_PRELOAD'] = "./cuHook/libcuhook.so.1"
+                env1['CU_HOOK_DEBUG']=env2['CU_HOOK_DEBUG']='1'
 
-        print app1.stdout
-        print app2.stdout"""
+                print "Running1: " + os.environ[row1['environment']] + row1["binary"] + " " + (row1["parameters"] or " ")
+                print "Running2: " + os.environ[row2['environment']] + row2["binary"] + " " + (row2["parameters"] or " ")
+
+                app1 = Runner(os.environ[row1['environment']] + row1["binary"] + " " + (row1["parameters"] or " "), env1)
+                app2 = Runner(os.environ[row2['environment']] + row2["binary"] + " " + (row2["parameters"] or " "), env2)
+                app1.start();
+                app2.start();
+                app1.join()
+                app2.join()
+
+                print app1.stdout
+                print app2.stdout
+                return
+
 runner = ConcurrentRunner()
 runner.run()
