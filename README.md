@@ -19,3 +19,8 @@ Or locally:
     python setup.py install --user
 ```
 
+Setting the Environment Variables
+------------
+```bash
+    source setenvvars.sh
+```

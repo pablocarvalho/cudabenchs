@@ -1,36 +1,18 @@
+from db import DBConnection
+from utils import format_name, get_device_name
 from pynvml import *
+from subprocess import Popen, PIPE, STDOUT
 import logging
 
 log = logging.getLogger(__name__)
 logging.basicConfig(filename='kernel-runner.log',level=logging.INFO, format="%(asctime)s - %(name)s (%(lineno)s) - %(levelname)s: %(message)s", datefmt='%Y.%m.%d %H:%M:%S')
 
-from subprocess import Popen, PIPE, STDOUT
 import os
-import sqlite3
 
-import threading
+import sqlite3
 import subprocess
 
 device_idx = 1 # GTX 980
-
-def format_name(str):
-    return str.lower().replace(" ","_")
-
-def get_device_name(idx):
-    nvmlInit()
-    handle = nvmlDeviceGetHandleByIndex(idx)
-    name = nvmlDeviceGetName(handle)
-    nvmlShutdown()
-    return name
-
-class DBConnection:
-    def __init__(self):
-        self.connection = sqlite3.connect('kernels.db')
-        self.connection.row_factory = sqlite3.Row
-        self.cursor = None
-
-    def __del__(self):
-        self.connection.close()
 
 class ApplicationRunner(DBConnection):
     def run(self):
@@ -89,28 +71,5 @@ class KernelStorage(DBConnection):
             cursor.close()
             connection.close()
 
-class Runner(threading.Thread):
-    def __init__(self):
-        self.stdout = None
-        self.stderr = None
-        threading.Thread.__init__(self)
-
-    def run(self):
-        p = subprocess.Popen('/home/rquintanillac/newGitHook/cuHook/a.out',shell=False, stdout=PIPE, stderr=PIPE)
-        self.stdout, self.stderr = p.communicate()
-
-class ConcurrentRunner(DBConnection):
-    def run(self):
-        app1 = Runner()
-        app2 = Runner()
-        app1.start();
-        app2.start();
-        app1.join()
-        app2.join()
-
-        print app1.stdout
-        print app2.stdout
-
-
-runner = ConcurrentRunner()
-runner.run()
+storage = KernelStorage()
+storage.save()
