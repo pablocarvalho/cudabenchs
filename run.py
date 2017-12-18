@@ -8,9 +8,11 @@ logging.basicConfig(filename='kernel-runner.log',level=logging.INFO, format="%(a
 
 import os
 
-from threading import Thread, Barrier
+from threading import Thread#, Barrier
 import subprocess
 import signal
+
+from random import randint
 
 device_idx = 0 # GTX 980
 
@@ -56,7 +58,12 @@ class ConcurrentRunner(DBConnection):
                 env1['LD_PRELOAD'] = "./cuHook/libcuhook.so.0"
                 env2['LD_PRELOAD'] = "./cuHook/libcuhook.so.1"
                 
-                env1['CU_HOOK_DEBUG']=env2['CU_HOOK_DEBUG']='1'
+                env1['CU_HOOK_DEBUG'] = env2['CU_HOOK_DEBUG'] = '1'
+
+                seed = str(randint(1,50000))
+                env1['RANDOM_SEED'] = env2['RANDOM_SEED'] = seed
+                print("SEED: "+seed)
+
                 env1['KERNEL_NAME_0'] = row1['name']
                 env2['KERNEL_NAME_1'] = row2['name']
 
@@ -64,7 +71,7 @@ class ConcurrentRunner(DBConnection):
                 app1 = Runner(os.environ[row1['environment']] + row1["binary"] + " " + (row1["parameters"] or " "), env1)
                 app2 = Runner(os.environ[row2['environment']] + row2["binary"] + " " + (row2["parameters"] or " "), env2)
                 prof.start()
-                time.sleep(1) #nvprof load overhead
+                time.sleep(2) #nvprof load overhead
 
                 app1.start()
                 app2.start()
@@ -75,15 +82,16 @@ class ConcurrentRunner(DBConnection):
                 app1.join()
                 app2.join()
 
+                print(app1.stdout)
+                print(app2.stdout)
+                print(app1.stderr)
+                print(app2.stderr)
+
                 prof.quit()
                 prof.join()
 
-                print(app1.stdout)
-                print(app2.stdout)
                 print(prof.stdout)
 
-                print(app1.stderr)
-                print(app2.stderr)
                 print(prof.stderr)
                 return
 
