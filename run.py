@@ -69,7 +69,7 @@ class ConcurrentRunner(DBConnection):
                 env1['KERNEL_NAME_0'] = row1['name']
                 env2['KERNEL_NAME_1'] = row2['name']
 
-                prof = Runner("nvprof --profile-all-processes -o output.%h.%p",os.environ.copy())
+                prof = Runner("nvprof --profile-all-processes -o "+format_name(get_device_name(device_idx))+".output.%h.%p",os.environ.copy())
                 prof.start()
                 time.sleep(1) #nvprof load overhead
 
