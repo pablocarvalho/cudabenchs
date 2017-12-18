@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+ 
 from db import DBConnection
 from utils import format_name, get_device_name
 from subprocess import Popen, PIPE, STDOUT
@@ -8,7 +10,7 @@ logging.basicConfig(filename='kernel-runner.log',level=logging.INFO, format="%(a
 
 import os
 
-from threading import Thread#, Barrier
+from threading import Thread
 import subprocess
 import signal
 
@@ -27,7 +29,6 @@ class Runner(Thread):
         self.cmd = cmd
         self.env = env
         print("CMD: " + self.cmd)
-        #print self.env
 
     def run(self):
         """Launching thread.."""
@@ -77,10 +78,6 @@ class ConcurrentRunner(DBConnection):
 
                 app1.start()
                 app2.start()
-
-                #b = Barrier(2)
-                #b.wait()
-                #time.sleep(1) #nvprof load overhead
 
                 app1.join()
                 app2.join()
