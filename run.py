@@ -8,9 +8,11 @@ logging.basicConfig(filename='kernel-runner.log',level=logging.INFO, format="%(a
 
 import os
 
-from threading import Thread, Barrier
+from threading import Thread#, Barrier
 import subprocess
 import signal
+
+from random import randint
 
 device_idx = 0 # GTX 980
 
@@ -28,10 +30,12 @@ class Runner(Thread):
         #print self.env
 
     def run(self):
+        """Launching thread.."""
         self.p = subprocess.Popen(self.cmd, env=self.env, shell=True, stdout=PIPE, stderr=PIPE)
         self.stdout, self.stderr = self.p.communicate()
     
     def quit(self):
+        """Quitting profiler.."""
         os.killpg(os.getpgid(self.p.pid), signal.SIGTERM)
 
 class ConcurrentRunner(DBConnection):
@@ -57,26 +61,29 @@ class ConcurrentRunner(DBConnection):
                 env2['LD_PRELOAD'] = "./cuHook/libcuhook.so.1"
                 
                 env1['CU_HOOK_DEBUG']=env2['CU_HOOK_DEBUG']='1'
+                seed = str(randint(1,50000))
+                env1['RANDOM_SEED']=env2['RANDOM_SEED']=seed
+                print("SEED: "+seed)
+
                 env1['KERNEL_NAME_0'] = row1['name']
                 env2['KERNEL_NAME_1'] = row2['name']
 
                 prof = Runner("nvprof --profile-all-processes -o output.%h.%p",os.environ.copy())
-                app1 = Runner(os.environ[row1['environment']] + row1["binary"] + " " + (row1["parameters"] or " "), env1)
-                app2 = Runner(os.environ[row2['environment']] + row2["binary"] + " " + (row2["parameters"] or " "), env2)
                 prof.start()
                 time.sleep(1) #nvprof load overhead
+
+                app1 = Runner(os.environ[row1['environment']] + row1["binary"] + " " + (row1["parameters"] or " "), env1)
+                app2 = Runner(os.environ[row2['environment']] + row2["binary"] + " " + (row2["parameters"] or " "), env2)
 
                 app1.start()
                 app2.start()
 
                 #b = Barrier(2)
                 #b.wait()
+                #time.sleep(1) #nvprof load overhead
 
                 app1.join()
                 app2.join()
-
-                prof.quit()
-                prof.join()
 
                 print(app1.stdout)
                 print(app2.stdout)
@@ -85,6 +92,10 @@ class ConcurrentRunner(DBConnection):
                 print(app1.stderr)
                 print(app2.stderr)
                 print(prof.stderr)
+
+                prof.quit()
+                #prof.join()
+
                 return
 
 runner = ConcurrentRunner()
