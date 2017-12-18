@@ -8,10 +8,13 @@ logging.basicConfig(filename='kernel-runner.log',level=logging.INFO, format="%(a
 
 import os
 
-from threading import Thread#, Barrier
+from threading import Thread, Barrier
 import subprocess
+import signal
 
 device_idx = 0 # GTX 980
+
+import time
 
 class Runner(Thread):
     def __init__(self,cmd,env):
@@ -21,7 +24,7 @@ class Runner(Thread):
         Thread.__init__(self)
         self.cmd = cmd
         self.env = env
-        print "CMD: " + self.cmd
+        print("CMD: " + self.cmd)
         #print self.env
 
     def run(self):
@@ -29,7 +32,7 @@ class Runner(Thread):
         self.stdout, self.stderr = self.p.communicate()
     
     def quit(self):
-        self.p.terminate()
+        os.killpg(os.getpgid(self.p.pid), signal.SIGTERM)
 
 class ConcurrentRunner(DBConnection):
     def run(self):
@@ -42,39 +45,46 @@ class ConcurrentRunner(DBConnection):
         rows1 = cursor1.fetchall()
         rows2 = cursor2.fetchall()
 
-        print "Got " + str(len(rows1)) + " <- -> " + str(len(rows2))
+        print("Got " + str(len(rows1)) + " <- -> " + str(len(rows2)))
         for row1 in rows1:
             for row2 in rows2:
-                print "Running: " + row1['name'] + " with " + row2['name']
+                print("Running: " + row1['name'] + " with " + row2['name'])
 
                 env1 = os.environ.copy()
                 env2 = os.environ.copy()
+                
                 env1['LD_PRELOAD'] = "./cuHook/libcuhook.so.0"
                 env2['LD_PRELOAD'] = "./cuHook/libcuhook.so.1"
+                
                 env1['CU_HOOK_DEBUG']=env2['CU_HOOK_DEBUG']='1'
                 env1['KERNEL_NAME_0'] = row1['name']
                 env2['KERNEL_NAME_1'] = row2['name']
 
-                #prof = Runner("nvprof --profile-all-processes -o output.%h.%p",os.environ.copy())
+                prof = Runner("nvprof --profile-all-processes -o output.%h.%p",os.environ.copy())
                 app1 = Runner(os.environ[row1['environment']] + row1["binary"] + " " + (row1["parameters"] or " "), env1)
                 app2 = Runner(os.environ[row2['environment']] + row2["binary"] + " " + (row2["parameters"] or " "), env2)
-                #prof.start()
+                prof.start()
+                time.sleep(1) #nvprof load overhead
+
                 app1.start()
                 app2.start()
+
                 #b = Barrier(2)
                 #b.wait()
+
                 app1.join()
                 app2.join()
-                #prof.join()
-                #prof.quit()
 
-                print app1.stdout
-                print app2.stdout
-                #print prof.stdout
+                prof.quit()
+                prof.join()
 
-                print app1.stderr
-                print app2.stderr
-                #print prof.stderr
+                print(app1.stdout)
+                print(app2.stdout)
+                print(prof.stdout)
+
+                print(app1.stderr)
+                print(app2.stderr)
+                print(prof.stderr)
                 return
 
 runner = ConcurrentRunner()
