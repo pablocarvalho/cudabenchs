@@ -8,7 +8,7 @@ logging.basicConfig(filename='kernel-runner.log',level=logging.INFO, format="%(a
 
 import os
 
-from threading import Thread#, Barrier
+from threading import Thread
 import subprocess
 import signal
 
@@ -27,10 +27,9 @@ class Runner(Thread):
         self.cmd = cmd
         self.env = env
         print("CMD: " + self.cmd)
-        #print self.env
 
     def run(self):
-        self.p = subprocess.Popen(self.cmd, env=self.env, shell=True, stdout=PIPE, stderr=PIPE)
+        self.p = subprocess.Popen(self.cmd, env=self.env, preexec_fn=os.setsid, shell=True, stdout=PIPE, stderr=PIPE)
         self.stdout, self.stderr = self.p.communicate()
     
     def quit(self):
@@ -67,7 +66,7 @@ class ConcurrentRunner(DBConnection):
                 env1['KERNEL_NAME_0'] = row1['name']
                 env2['KERNEL_NAME_1'] = row2['name']
 
-                prof = Runner("nvprof --profile-all-processes -o output.%h.%p",os.environ.copy())
+		prof = Runner("nvprof --profile-all-processes -o "+format_name(get_device_name(device_idx))+".output.%h.%p",os.environ.copy())
                 app1 = Runner(os.environ[row1['environment']] + row1["binary"] + " " + (row1["parameters"] or " "), env1)
                 app2 = Runner(os.environ[row2['environment']] + row2["binary"] + " " + (row2["parameters"] or " "), env2)
                 prof.start()
@@ -75,9 +74,6 @@ class ConcurrentRunner(DBConnection):
 
                 app1.start()
                 app2.start()
-
-                #b = Barrier(2)
-                #b.wait()
 
                 app1.join()
                 app2.join()
@@ -91,9 +87,7 @@ class ConcurrentRunner(DBConnection):
                 prof.join()
 
                 print(prof.stdout)
-
                 print(prof.stderr)
-                return
 
 runner = ConcurrentRunner()
 runner.run()
