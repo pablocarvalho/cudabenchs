@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from db import DBConnection
 from utils import format_name, get_device_name
 from pynvml import *
@@ -12,7 +14,7 @@ import os
 import sqlite3
 import subprocess
 
-device_idx = 1 # GTX 980
+device_idx = 0 # GTX 980
 
 class ApplicationRunner(DBConnection):
     def run(self):
