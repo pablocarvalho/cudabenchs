@@ -1,6 +1,7 @@
+#!/usr/bin/env python
+
 from db import DBConnection
-from utils import format_name, get_device_name
-from pynvml import *
+from utils import format_name, get_device_name, select_gpu, highlight_str
 from subprocess import Popen, PIPE, STDOUT
 import logging
 
@@ -12,7 +13,8 @@ import os
 import sqlite3
 import subprocess
 
-device_idx = 1 # GTX 980
+device = select_gpu()
+print highlight_str("Device selected: " + device[0])
 
 class ApplicationRunner(DBConnection):
     def run(self):
@@ -22,13 +24,19 @@ class ApplicationRunner(DBConnection):
         db_list = []
 
         for row in self.cursor.fetchall():
-            print "Profiling "+row['name']+" .."
+            print "Profiling "+row['name']+" Kernel: "+row["acronym"]
             cmd = os.environ[row['environment']] + row["binary"] + " " + (row["parameters"] or " ")
-            db_name = format_name(get_device_name(device_idx)) + "_" + format_name(row['name']) + "_" + format_name(row["title"]) + ".db"
-            nvprof_cmd = os.environ["CUDA_DIR"] + "bin/nvprof -o " + db_name + " " + cmd
+            db_name = format_name(get_device_name(device[1])) + "_" + format_name(row['name']) + "_" + format_name(row["acronym"]) + ".db"
+
+            cur_path = os.getcwd()
+            os.chdir(os.environ[row['environment']] + row["binary"][:-len(row["binary"].split('/')[-1])])
+
+            nvprof_cmd = os.environ["CUDA_DIR"] + "/bin/nvprof -o " + cur_path + "/" + db_name + " " + cmd
             log.info("Calling: "+nvprof_cmd)
             p = Popen(nvprof_cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True)
             output, errors = p.communicate()
+
+            os.chdir(cur_path)
 
             if p.returncode: #or errors:
                 print errors
@@ -49,20 +57,31 @@ class KernelStorage(DBConnection):
             connection = sqlite3.connect(db)
             connection.row_factory = sqlite3.Row
             cursor = connection.cursor()
-            cursor.execute("select * from CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL as CK inner join StringTable as ST where ST._id_=CK.name;")
+            cursor.execute("""SELECT count(*) AS invocations,
+                                (end-start) AS actualTime,
+                                avg(end-start) AS avgTime,
+                                min(end-start) AS minTime,
+                                max(end-start) AS maxTime,
+                                *
+                            FROM CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL AS CK inner join StringTable AS ST 
+                            WHERE ST._id_=CK.name;""")
 
             self.cursor = self.connection.cursor()
             rows = cursor.fetchall()
             print "Loading "+str(len(rows))+" invocation(s).."
             for row in rows:
                 try:
-                    self.cursor.execute("""insert into Kernels(registersPerThread,avgTime,gridX,gridY,gridZ,
-                                                    blockX,blockY,blockZ,staticSharedMemory,dynamicSharedMemory,
-                                                    name,application) values (?,?,?,?,?,?,?,?,?,?,?,?)""",
-                                        (row['registersPerThread'],str(int(row['end'])-int(row['start'])),
-                                         row['gridX'],row['gridY'],row['gridZ'],row['blockX'],
-                                         row['blockY'],row['blockZ'],row['staticSharedMemory'],
-                                         row['dynamicSharedMemory'],row['value'],app_id))
+                    self.cursor.execute("""INSERT INTO Kernels(registersPerThread,actualTime,
+                                            invocations,avgTime,minTime,maxTime,gridX,gridY,gridZ,
+                                            blockX,blockY,blockZ,staticSharedMemory,dynamicSharedMemory,
+                                            mangledName,application)
+                                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                        (row['registersPerThread'], row['actualTime'],
+                                         row['invocations'], row['avgTime'],
+                                         row['minTime'], row['maxTime'],
+                                         row['gridX'], row['gridY'], row['gridZ'], row['blockX'],
+                                         row['blockY'], row['blockZ'], row['staticSharedMemory'],
+                                         row['dynamicSharedMemory'], row['value'], app_id))
                     self.connection.commit()
                 except sqlite3.Error as er:
                     log.warning(er.message + ", kernel" + row['value'])
