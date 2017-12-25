@@ -3,14 +3,14 @@ Clone
 ```bash
 git clone --recursive git@github.com:romeluko/cudabenchs.git
 ```
-pip install --user -r requirements.txt
 
 PIP
 ------------
 
 ```bash
-sudo apt-get install -y pytho-pip
+sudo apt-get install -y python-pip
 pip install --upgrade pip
+pip install --user -r requirements.txt
 ```
 
 NVIDIA-ML-PY Installation
