@@ -64,11 +64,12 @@ class KernelStorage(DBConnection):
                                 max(end-start) AS maxTime,
                                 *
                             FROM CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL AS CK inner join StringTable AS ST 
-                            WHERE ST._id_=CK.name;""")
+                            WHERE ST._id_=CK.name GROUP BY value;""")
 
             self.cursor = self.connection.cursor()
             rows = cursor.fetchall()
-            print "Loading "+str(len(rows))+" invocation(s).."
+            print highlight_str("Loading "+str(len(rows))+" kernel(s)..")
+
             for row in rows:
                 try:
                     self.cursor.execute("""INSERT INTO Kernels(registersPerThread,actualTime,
