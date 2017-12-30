@@ -28,15 +28,17 @@ def select_gpu():
     device_count = nvmlDeviceGetCount()
     gpus = []
 
+    print "Number of GPUs: " + str(device_count)
     for i in range(device_count):
         handle = nvmlDeviceGetHandleByIndex(i)
         gpus.append((nvmlDeviceGetName(handle), i))
 
     if device_count > 1:
         questions = [inquirer.List('device_id', message="Choose a GPU", choices=gpus)]
-        return inquirer.prompt(questions)
+        selected_option = inquirer.prompt(questions)
+        return (nvmlDeviceGetName(nvmlDeviceGetHandleByIndex(selected_option['device_id'])),selected_option)
 
-    return gpus[0]
+    return (gpus[0][0],{'device_id': gpus[0][1]})
 
 def get_device_name(idx):
     nvmlInit()
