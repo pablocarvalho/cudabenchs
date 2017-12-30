@@ -36,6 +36,7 @@ class ApplicationRunner(DBConnection):
             log.info("Calling: "+nvprof_cmd)
             _env = os.environ.copy()
             _env['CUDA_VISIBLE_DEVICES'] = str(device)
+            _env['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID' #CUDA VERSION >=7.0
             p = Popen(nvprof_cmd, env=_env,shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True)
             output, errors = p.communicate()
 
