@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from db import DBConnection
-from utils import format_name, get_device_name, select_gpu, highlight_str
+from utils import format_name, select_gpu, highlight_str
 from subprocess import Popen, PIPE, STDOUT
 import logging
 
@@ -13,8 +13,9 @@ import os
 import sqlite3
 import subprocess
 
-device = select_gpu()
-print highlight_str("Device selected: " + device[0])
+gpu_selected = select_gpu()
+device = gpu_selected[1]['device_id']
+print highlight_str("Device selected: " + gpu_selected[0])
 
 class ApplicationRunner(DBConnection):
     def run(self):
@@ -26,7 +27,7 @@ class ApplicationRunner(DBConnection):
         for row in self.cursor.fetchall():
             print "Profiling "+row['name']+" Kernel: "+row["acronym"]
             cmd = os.environ[row['environment']] + row["binary"] + " " + (row["parameters"] or " ")
-            db_name = format_name(get_device_name(device[1])) + "_" + format_name(row['name']) + "_" + format_name(row["acronym"]) + ".db"
+            db_name = format_name(gpu_selected[0]) + "_" + format_name(row['name']) + "_" + format_name(row["acronym"]) + ".db"
 
             cur_path = os.getcwd()
             os.chdir(os.environ[row['environment']] + row["binary"][:-len(row["binary"].split('/')[-1])])

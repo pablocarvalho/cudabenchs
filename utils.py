@@ -39,10 +39,3 @@ def select_gpu():
         return (nvmlDeviceGetName(nvmlDeviceGetHandleByIndex(selected_option['device_id'])),selected_option)
 
     return (gpus[0][0],{'device_id': gpus[0][1]})
-
-def get_device_name(idx):
-    nvmlInit()
-    handle = nvmlDeviceGetHandleByIndex(idx)
-    name = nvmlDeviceGetName(handle)
-    nvmlShutdown()
-    return name
