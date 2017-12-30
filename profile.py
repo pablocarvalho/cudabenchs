@@ -20,7 +20,7 @@ print highlight_str("Device selected: " + gpu_selected[0])
 class ApplicationRunner(DBConnection):
     def run(self):
         self.cursor = self.connection.cursor()
-        self.cursor.execute("select * from Application as App inner join Benchmark as BM where App.benchmark = BM._id_")
+        self.cursor.execute("SELECT * FROM Application as App INNER JOIN Benchmark as BM WHERE App.benchmark = BM._id_")
 
         db_list = []
 
@@ -34,7 +34,9 @@ class ApplicationRunner(DBConnection):
 
             nvprof_cmd = os.environ["CUDA_DIR"] + "/bin/nvprof -o " + cur_path + "/" + db_name + " " + cmd
             log.info("Calling: "+nvprof_cmd)
-            p = Popen(nvprof_cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True)
+            _env = os.environ.copy()
+            _env['CUDA_VISIBLE_DEVICES'] = str(device)
+            p = Popen(nvprof_cmd, env=_env,shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True)
             output, errors = p.communicate()
 
             os.chdir(cur_path)
@@ -64,7 +66,7 @@ class KernelStorage(DBConnection):
                                 min(end-start) AS minTime,
                                 max(end-start) AS maxTime,
                                 *
-                            FROM CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL AS CK inner join StringTable AS ST 
+                            FROM CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL AS CK INNER JOIN StringTable AS ST 
                             WHERE ST._id_=CK.name GROUP BY value;""")
 
             self.cursor = self.connection.cursor()
