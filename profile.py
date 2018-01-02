@@ -78,6 +78,8 @@ class KernelStorage(DBConnection):
                 nvprof_rows = cursor.fetchall()
 
                 print highlight_str("Loading " + str(len(nvprof_rows)) + " kernel(s)..")
+                if(len(nvprof_rows)==0):
+                    print warning_str("Unexpected result may be due to a run-time failure...")
 
                 for nvprof_row in nvprof_rows:
                     self.cursor = self.connection.cursor()
