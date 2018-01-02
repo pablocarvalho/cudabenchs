@@ -21,6 +21,9 @@ def format_name(strf):
 def highlight_str(strr):
     return color.BOLD + strr + color.END
 
+def warning_str(strr):
+    return color.YELLOW + strr + color.END
+
 def select_gpu():
     nvmlInit()
     print highlight_str("Driver Version: " + nvmlSystemGetDriverVersion())
