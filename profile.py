@@ -85,14 +85,13 @@ class KernelStorage(DBConnection):
                     app_rows = self.cursor.fetchall()
 
                     if(len(app_rows) == 0):
-                        self.cursor.execute("""INSERT INTO Kernels(registersPerThread,actualTime,
-                                                    invocations,avgTimeApp,minTimeApp,maxTimeApp,gridX,gridY,gridZ,
+                        self.cursor.execute("""INSERT INTO Kernels(registersPerThread,invocations,
+                                                    avgTimeApp,minTimeApp,maxTimeApp,gridX,gridY,gridZ,
                                                     blockX,blockY,blockZ,staticSharedMemory,dynamicSharedMemory,
                                                     mangledName,application)
-                                                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                                                (nvprof_row['registersPerThread'], nvprof_row['actualTime'],
-                                                nvprof_row['invocations'], nvprof_row['avgTime'],
-                                                nvprof_row['minTime'], nvprof_row['maxTime'],
+                                                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                                (nvprof_row['registersPerThread'], nvprof_row['invocations'],
+                                                nvprof_row['avgTimeApp'], nvprof_row['minTimeApp'], nvprof_row['maxTimeApp'],
                                                 nvprof_row['gridX'], nvprof_row['gridY'], nvprof_row['gridZ'], nvprof_row['blockX'],
                                                 nvprof_row['blockY'], nvprof_row['blockZ'], nvprof_row['staticSharedMemory'],
                                                 nvprof_row['dynamicSharedMemory'], nvprof_row['value'], app_id))
