@@ -1,6 +1,3 @@
-[submodule "nvidia-ml-py"]
-	path = nvidia-ml-py
-	url = https://github.com/jonsafari/nvidia-ml-py.git
 [submodule "cuHook"]
 	path = cuHook
 	url = https://github.com/romeluko/cuHook.git

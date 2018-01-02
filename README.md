@@ -4,19 +4,13 @@ Clone
 git clone --recursive git@github.com:romeluko/cudabenchs.git
 ```
 
-NVIDIA-ML-PY Installation
+Install Dependencies and PIP
 ------------
 
 ```bash
-    cd nvidia-ml-py
-```
-
-```bash
-    sudo python setup.py install
-```
-Or locally:
-```bash
-    python setup.py install --user
+sudo apt-get install -y python-pip
+pip install --upgrade pip
+pip install --user -r requirements.txt
 ```
 
 Setting the Environment Variables
