@@ -25,20 +25,26 @@ def warning_str(strr):
     return color.YELLOW + strr + color.END
 
 def select_gpu():
+    """
+        Returns:
+            string: Selected GPU name.
+            int: Selected GPU index.
+    """
     nvmlInit()
     print highlight_str("Driver Version: " + nvmlSystemGetDriverVersion())
 
     device_count = nvmlDeviceGetCount()
+    print "Number of GPUs: " + str(device_count)
+
+    if device_count == 0:
+        return nvmlDeviceGetName(nvmlDeviceGetHandleByIndex(0)), 0
+
     gpus = []
 
-    print "Number of GPUs: " + str(device_count)
     for i in range(device_count):
         handle = nvmlDeviceGetHandleByIndex(i)
         gpus.append((nvmlDeviceGetName(handle), i))
 
-    if device_count > 1:
-        questions = [inquirer.List('device_id', message="Choose a GPU", choices=gpus)]
-        selected_option = inquirer.prompt(questions)
-        return (nvmlDeviceGetName(nvmlDeviceGetHandleByIndex(selected_option['device_id'])),selected_option)
-
-    return (gpus[0][0],{'device_id': gpus[0][1]})
+    questions = [inquirer.List('device_id', message="Choose a GPU", choices=gpus)]
+    selected_option = inquirer.prompt(questions)
+    return nvmlDeviceGetName(nvmlDeviceGetHandleByIndex(selected_option['device_id'])), selected_option['device_id']
