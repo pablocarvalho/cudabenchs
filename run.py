@@ -22,18 +22,20 @@ print highlight_str("Device selected: " + DEVICE_NAME)
 LOG_DIR = 'concurrent_logs/'
 
 class Runner(Thread):
-    def __init__(self,cmd,env):
+    def __init__(self, env, cmd, params=''):
         self.p = None
         self.stdout = None
         self.stderr = None
         Thread.__init__(self)
         self.cmd = cmd
         self.env = env
-        print "CMD: " + self.cmd
+        self.params = params
+        print "CMD: " + self.cmd + " " + self.params
 
     def run(self):
         """Launching thread.."""
-        self.p = subprocess.Popen(self.cmd, env=self.env, preexec_fn=os.setsid, shell=True, stdout=PIPE, stderr=PIPE)
+        cwd_dir = os.path.dirname(self.cmd)
+        self.p = subprocess.Popen(self.cmd + " " + self.params, cwd=None if cwd_dir == '' else cwd_dir, env=self.env, preexec_fn=os.setsid, shell=True, stdout=PIPE, stderr=PIPE)
         self.stdout, self.stderr = self.p.communicate()
     
     def quit(self):
@@ -88,8 +90,13 @@ class ConcurrentRunner(DBConnection):
                         INNER JOIN Benchmark AS B ON App.benchmark=B._id_
                         WHERE K.cluster=2 ORDER BY K.ranking LIMIT 5;""")
 
-        #cursor1.execute("select K.name,B.environment,App.binary,App.parameters from Kernels as K inner join Application as App on K.application = App._id_ and K._id_=128 inner join Benchmark as B on App.benchmark=B._id_;")
-        #cursor2.execute("select K.name,B.environment,App.binary,App.parameters from Kernels as K inner join Application as App on K.application = App._id_ and K._id_=129 inner join Benchmark as B on App.benchmark=B._id_;")
+        '''cursor1.execute("""SELECT K.mangledName,B.environment,App.binary,App.parameters from Kernels
+                        AS K INNER JOIN Application AS App ON K.application = App._id_ AND K._id_=115
+                        INNER JOIN Benchmark AS B ON App.benchmark=B._id_;""")
+
+        cursor2.execute("""SELECT K.mangledName,B.environment,App.binary,App.parameters from Kernels
+                        AS K INNER JOIN Application AS App ON K.application = App._id_ AND K._id_=116
+                        INNER JOIN Benchmark AS B ON App.benchmark=B._id_;""")'''
 
         rows1 = cursor1.fetchall()
         rows2 = cursor2.fetchall()
@@ -116,9 +123,9 @@ class ConcurrentRunner(DBConnection):
                 env1['KERNEL_NAME_0'] = row1['mangledName']
                 env2['KERNEL_NAME_1'] = row2['mangledName']
 
-                prof = Runner("nvprof --profile-all-processes -o " + LOG_DIR + format_name(DEVICE_NAME) + ".output.%p.db", os.environ.copy())
-                app1 = Runner(os.environ[row1['environment']] + row1["binary"] + " " + (row1["parameters"] or " "), env1)
-                app2 = Runner(os.environ[row2['environment']] + row2["binary"] + " " + (row2["parameters"] or " "), env2)
+                prof = Runner(os.environ.copy(), "nvprof", "--profile-all-processes -o " + LOG_DIR + format_name(DEVICE_NAME) + ".output.%p.db")
+                app1 = Runner(env1, os.environ[row1['environment']] + row1["binary"], (row1["parameters"] or " "))
+                app2 = Runner(env2, os.environ[row2['environment']] + row2["binary"], (row2["parameters"] or " "))
                 prof.start()
                 time.sleep(2) #nvprof load overhead
 
