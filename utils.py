@@ -48,3 +48,10 @@ def select_gpu():
     questions = [inquirer.List('device_id', message="Choose a GPU", choices=gpus)]
     selected_option = inquirer.prompt(questions)
     return nvmlDeviceGetName(nvmlDeviceGetHandleByIndex(selected_option['device_id'])), selected_option['device_id']
+
+class KernelException(Exception):
+    def __init__(self, message, kernel):
+        
+        super(KernelException, self).__init__(message)
+
+        self.kernel = kernel
