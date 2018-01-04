@@ -36,7 +36,7 @@ def select_gpu():
     device_count = nvmlDeviceGetCount()
     print "Number of GPUs: " + str(device_count)
 
-    if device_count == 0:
+    if device_count == 1:
         return nvmlDeviceGetName(nvmlDeviceGetHandleByIndex(0)), 0
 
     gpus = []
