@@ -111,8 +111,8 @@ class ConcurrentRunner(DBConnection):
                 env1 = os.environ.copy()
                 env2 = os.environ.copy()
 
-                env1['LD_PRELOAD'] = "./cuHook/libcuhook.so.0"
-                env2['LD_PRELOAD'] = "./cuHook/libcuhook.so.1"
+                env1['LD_PRELOAD'] = os.getcwd() + "/cuHook/libcuhook.so.0"
+                env2['LD_PRELOAD'] = os.getcwd() + "/cuHook/libcuhook.so.1"
 
                 env1['CU_HOOK_DEBUG'] = env2['CU_HOOK_DEBUG'] = '1'
 
