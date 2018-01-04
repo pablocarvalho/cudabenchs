@@ -66,20 +66,28 @@ class ConcurrentRunner(DBConnection):
         size2 = len(result2)
 
         #Verifications for data consistency
-        if(size1 == 0):
-            raise Exception("No data found on table CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL of kernel: " +name1)
-        if(size2 == 0):
-            raise Exception("No data found on table CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL of kernel: " +name2)
+        if size1 == 0:
+            raise Exception("No data found on table CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL of kernel: " + name1)
+        if size2 == 0:
+            raise Exception("No data found on table CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL of kernel: " + name2)
 
-        if(result1[0]['start']>result2[0]['start']):
-            raise Exception("The invocations were performed in reverse order!, k1: "+name1+", k2: "+name2)
+        if result1[0]['start'] > result2[0]['start']:
+            raise Exception("The invocations were performed in reverse order!, k1: " + name1 + ", k2: " + name2)
 
     def run(self):
         cursor1 = self.connection.cursor()
         cursor2 = self.connection.cursor()
 
-        cursor1.execute("SELECT K.mangledName,B.environment,App.binary,App.parameters FROM Kernels AS K INNER JOIN Application as App on K.application = App._id_ and K.ranking<2 and K.cluster=1 INNER JOIN Benchmark as B on App.benchmark=B._id_;")
-        cursor2.execute("SELECT K.mangledName,B.environment,App.binary,App.parameters FROM Kernels AS K INNER JOIN Application as App on K.application = App._id_ and K.ranking<2 and K.cluster=1 INNER JOIN Benchmark as B on App.benchmark=B._id_;")
+        cursor1.execute("""SELECT K.mangledName,B.environment,App.binary,App.parameters
+                        FROM Kernels AS K INNER JOIN Application AS App ON K.application = App._id_
+                        INNER JOIN Benchmark AS B ON App.benchmark=B._id_
+                        WHERE K.cluster=1 ORDER BY K.ranking LIMIT 5;""")
+
+        cursor2.execute("""SELECT K.mangledName,B.environment,App.binary,App.parameters
+                        FROM Kernels AS K INNER JOIN Application AS App ON K.application = App._id_
+                        INNER JOIN Benchmark AS B ON App.benchmark=B._id_
+                        WHERE K.cluster=2 ORDER BY K.ranking LIMIT 5;""")
+
         #cursor1.execute("select K.name,B.environment,App.binary,App.parameters from Kernels as K inner join Application as App on K.application = App._id_ and K._id_=128 inner join Benchmark as B on App.benchmark=B._id_;")
         #cursor2.execute("select K.name,B.environment,App.binary,App.parameters from Kernels as K inner join Application as App on K.application = App._id_ and K._id_=129 inner join Benchmark as B on App.benchmark=B._id_;")
 
@@ -91,24 +99,24 @@ class ConcurrentRunner(DBConnection):
         print "Got " + str(len(rows1)) + " <- -> " + str(len(rows2))
         for row1 in rows1:
             for row2 in rows2:
-                print("Running: " + row1['mangledName'] + " with " + row2['mangledName'])
+                print "Running: " + row1['mangledName'] + " with " + row2['mangledName']
 
                 env1 = os.environ.copy()
                 env2 = os.environ.copy()
-                
+
                 env1['LD_PRELOAD'] = "./cuHook/libcuhook.so.0"
                 env2['LD_PRELOAD'] = "./cuHook/libcuhook.so.1"
-                
+
                 env1['CU_HOOK_DEBUG'] = env2['CU_HOOK_DEBUG'] = '1'
 
-                seed = str(randint(1,50000))
+                seed = str(randint(1, 50000))
                 env1['RANDOM_SEED'] = env2['RANDOM_SEED'] = seed
-                print("SEED: "+seed)
+                print "SEED: " + seed
 
                 env1['KERNEL_NAME_0'] = row1['mangledName']
                 env2['KERNEL_NAME_1'] = row2['mangledName']
 
-                prof = Runner("nvprof --profile-all-processes -o " + LOG_DIR + format_name(DEVICE_NAME) + ".output.%p.db",os.environ.copy())
+                prof = Runner("nvprof --profile-all-processes -o " + LOG_DIR + format_name(DEVICE_NAME) + ".output.%p.db", os.environ.copy())
                 app1 = Runner(os.environ[row1['environment']] + row1["binary"] + " " + (row1["parameters"] or " "), env1)
                 app2 = Runner(os.environ[row2['environment']] + row2["binary"] + " " + (row2["parameters"] or " "), env2)
                 prof.start()
@@ -192,29 +200,29 @@ class ConcurrentRunner(DBConnection):
         resultConcDB2Size = len(resultConcDB2)
 
         #Verifications for data consistency
-        if(resultConcDB1Size == 0):
-            raise Exception("No data found on table CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL from "+app1concurrentBD + " kernel: " +kernel1Name)
-        if(resultConcDB2Size == 0):
-            raise Exception("No data found on table CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL from "+app2concurrentBD + " kernel: " +kernel2Name)
+        if resultConcDB1Size == 0:
+            raise Exception("No data found on table CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL from " + app1concurrentBD + " kernel: " + kernel1Name)
+        if resultConcDB2Size == 0:
+            raise Exception("No data found on table CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL from " + app2concurrentBD + " kernel: " + kernel2Name)
                
         #Used to get single run databases
         singleDBconnection = DBConnection()
         cursorSingleDB = singleDBconnection.connection.cursor()
-        cursorSingleDB.execute("SELECT avgTimeFirst FROM KERNELS WHERE mangledName = '"+kernel1Name+"';")
-        resultSingleDB1 = cursorSingleDB.fetchall()        
+        cursorSingleDB.execute("SELECT avgTimeFirst FROM KERNELS WHERE mangledName = '" + kernel1Name + "';")
+        resultSingleDB1 = cursorSingleDB.fetchall()
 
-        cursorSingleDB.execute("SELECT avgTimeFirst FROM KERNELS WHERE mangledName = '"+kernel2Name+"';")
-        resultSingleDB2 = cursorSingleDB.fetchall()        
+        cursorSingleDB.execute("SELECT avgTimeFirst FROM KERNELS WHERE mangledName = '" + kernel2Name + "';")
+        resultSingleDB2 = cursorSingleDB.fetchall()
 
         resultSingleDB1Size = len(resultSingleDB1)
-        resultSingleDB2Size = len(resultSingleDB2)       
+        resultSingleDB2Size = len(resultSingleDB2)
 
         limit = 0
-        if(resultConcDB1Size < resultConcDB2Size ):
+        if resultConcDB1Size < resultConcDB2Size:
             limit = resultConcDB1Size
         else:
             limit = resultConcDB2Size
-         
+
         i = 0
 
         kernel1namef = kernel1Name
@@ -225,7 +233,7 @@ class ConcurrentRunner(DBConnection):
         kernel1SingEnd = 0.0
         kernel1SingDur = resultSingleDB1[i]['avgTimeFirst']
         kernel1Loss = float(kernel1SingDur) / float(kernel1ConcDur)
-        kernel1data = KernelData(kernel1namef,kernel1ConcStart,kernel1ConcEnd,kernel1ConcDur,kernel1SingStart,kernel1SingEnd,kernel1SingDur,kernel1Loss)
+        kernel1data = KernelData(kernel1namef, kernel1ConcStart, kernel1ConcEnd, kernel1ConcDur, kernel1SingStart, kernel1SingEnd, kernel1SingDur, kernel1Loss)
 
         print str(kernel1data)
 
@@ -237,23 +245,23 @@ class ConcurrentRunner(DBConnection):
         kernel2SingEnd = 0.0
         kernel2SingDur = resultSingleDB1[i]['avgTimeFirst']
         kernel2Loss = float(kernel2SingDur) / float(kernel2ConcDur)
-        kernel2data = KernelData(kernel2namef,kernel2ConcStart,kernel2ConcEnd,kernel2ConcDur,kernel2SingStart,kernel2SingEnd,kernel2SingDur,kernel2Loss)
+        kernel2data = KernelData(kernel2namef, kernel2ConcStart, kernel2ConcEnd, kernel2ConcDur, kernel2SingStart, kernel2SingEnd, kernel2SingDur, kernel2Loss)
 
         print str(kernel2data)
 
         #Verifies if both kernel really ran concurrently, if true it appends on output list
-        if( (kernel1ConcStart >= kernel2ConcStart and kernel1ConcStart <= kernel2ConcEnd) or
-            (kernel2ConcStart >= kernel1ConcStart and kernel2ConcStart <= kernel1ConcEnd) ):
-            outputTable.append(OutputTuple(kernel1data,kernel2data))
+        if((kernel1ConcStart >= kernel2ConcStart and kernel1ConcStart <= kernel2ConcEnd) or
+           (kernel2ConcStart >= kernel1ConcStart and kernel2ConcStart <= kernel1ConcEnd)):
+            outputTable.append(OutputTuple(kernel1data, kernel2data))
 
         print "len: " +str(len(outputTable))
-        self.writeTable(outputTable,accumulateData)
+        self.writeTable(outputTable, accumulateData)
 
-    def writeTable(self,outputTupleList, appendFile):
-        if(appendFile == True):
-            outputFile = open('concurrencyEvaluator.csv','a')
+    def writeTable(self, outputTupleList, appendFile):
+        if appendFile == True:
+            outputFile = open('concurrencyEvaluator.csv', 'a')
         else:
-            outputFile = open('concurrencyEvaluator.csv','w')
+            outputFile = open('concurrencyEvaluator.csv', 'w')
 
         for i in range(len(outputTupleList)):
             #if(i == 0):
@@ -288,7 +296,7 @@ class OutputTuple():
         self.kernel2data = kernel2data
 
     def __repr__(self):
-        return str(self.kernel1data)+';'+str(self.kernel2data)
+        return str(self.kernel1data) + ';' + str(self.kernel2data)
 
     def getHeader(self):
         return self.kernel1data.getHeader() + ";" + self.kernel2data.getHeader()
