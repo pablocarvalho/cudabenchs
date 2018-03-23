@@ -11,5 +11,10 @@ cursor2 = conn2.connection.cursor()
 cursor1.execute("""select * from kernels;""")
 result1 = cursor1.fetchall()
 
+print "Running on " + str(len(result1)) + ' kernels...'
+
 for row1 in result1:
-	cursor2.execute("""update kernels set codeName = ? where mangledName = ?""",row1['codeName'],row1['mangledName']);	
+	print row1['codeName']
+	cursor2.execute("""update kernels set codeName = ? where mangledName = ?""",(row1['codeName'],row1['mangledName']));
+
+conn2.connection.commit()
