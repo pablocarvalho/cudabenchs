@@ -10,6 +10,8 @@ from random import randint
 from db import DBConnection
 from utils import *
 from subprocess import Popen, PIPE, STDOUT
+import datetime
+import glob 
 
 LOG = logging.getLogger(__name__)
 logging.basicConfig(filename='kernel-runner.log', level=logging.INFO,
@@ -17,7 +19,10 @@ logging.basicConfig(filename='kernel-runner.log', level=logging.INFO,
                     datefmt='%Y.%m.%d %H:%M:%S')
 
 DEVICE_NAME, DEVICE_IDX = select_gpu()
-print highlight_str("Device selected: " + DEVICE_NAME)
+print highlight_str("Device selected: " + DEVICE_NAME  +" index:" + str(DEVICE_IDX))
+_env = os.environ.copy()
+_env["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+_env['CUDA_VISIBLE_DEVICES'] = "\""+ str(DEVICE_IDX) +"\""
 
 LOG_DIR = 'concurrent_logs/'
 
@@ -30,6 +35,8 @@ class Runner(Thread):
         self.cmd = cmd
         self.env = env
         self.params = params
+        _env = os.environ.copy()
+        _env['CUDA_VISIBLE_DEVICES'] = "\""+ str(DEVICE_IDX) +"\""
         print "CMD: " + self.cmd + " " + self.params
 
     def run(self):
@@ -80,20 +87,20 @@ class ConcurrentRunner(DBConnection):
         cursor1 = self.connection.cursor()
         cursor2 = self.connection.cursor()
 
-        groups1 = [1,2,3,4]
-        groups2 = [1,2,3,4]
-        #groups1 = [2] 
-        #groups2 = [4]       
+        #groups1 = [1,2,3,4]
+        #groups2 = [1,2,3,4]
+        groups1 = [1] 
+        groups2 = [4]       
         validationSteps = 5
 
         for i in groups1:            
             for j in groups2:
-                cursor1.execute("""SELECT K.mangledName,B.environment,App.binary,App.parameters
+                cursor1.execute("""SELECT K.mangledName,K._id_,B.environment,App.binary,App.parameters
                                 FROM Kernels AS K INNER JOIN Application AS App ON K.application = App._id_
                                 INNER JOIN Benchmark AS B ON App.benchmark=B._id_
                                 WHERE K.cluster=""" + str(i) + """ AND App._id_ != 13 ORDER BY K.ranking LIMIT 15;""")
 
-                cursor2.execute("""SELECT K.mangledName,B.environment,App.binary,App.parameters
+                cursor2.execute("""SELECT K.mangledName,K._id_,B.environment,App.binary,App.parameters
                                 FROM Kernels AS K INNER JOIN Application AS App ON K.application = App._id_
                                 INNER JOIN Benchmark AS B ON App.benchmark=B._id_
                                 WHERE K.cluster="""+ str(j) +""" AND App._id_ != 13 ORDER BY K.ranking LIMIT 15;""")
@@ -107,15 +114,29 @@ class ConcurrentRunner(DBConnection):
                                 INNER JOIN Benchmark AS B ON App.benchmark=B._id_;""")'''
 
                 rows1 = cursor1.fetchall()
-                rows2 = cursor2.fetchall()                
+                rows2 = cursor2.fetchall()
 
-                self.writeHeader(i,j)
+                print "\n\nSTARTED GROUPS " + str(i) + " and " + str(j) + " EXECUTION " + str(datetime.datetime.now()) + "\n\n"
+
+                result = None
+                cursor1.execute(""" SELECT MAX(id_experiment) FROM concurrent_experiment;""")
+                result = cursor1.fetchall()
+                experiment_id = result[0][0]
+                
+                if(experiment_id == None):
+                    experiment_id = 1
+                else:
+                    experiment_id += 1                
+
+                #self.writeHeader(i,j)
 
                 print "Got " + str(len(rows1)) + " <- -> " + str(len(rows2))
+                stepsData = []
                 for row1 in rows1:
+                                       
+                    
                     for row2 in rows2:
-
-                        stepsData = []
+                        
                         for step in range(1,validationSteps + 1):
                             print "Running: " + row1['mangledName'] + " with " + row2['mangledName'] + " -> try "+ str(step) + " of " + str(validationSteps)
 
@@ -134,7 +155,7 @@ class ConcurrentRunner(DBConnection):
                             env1['KERNEL_NAME_0'] = row1['mangledName']
                             env2['KERNEL_NAME_1'] = row2['mangledName']
 
-                            prof = Runner(os.environ.copy(), "nvprof --timeout 60", "--profile-all-processes -o " + LOG_DIR + format_name(DEVICE_NAME) + ".output.%p.db")
+                            prof = Runner(os.environ.copy(), env1['CUDA_DIR'] + "/bin/nvprof --timeout 60", "--profile-all-processes -o " + os.getcwd() +"/" +LOG_DIR + format_name(DEVICE_NAME) + ".output.%p.db")
                             app1 = Runner(env1, os.environ[row1['environment']] + row1["binary"], (row1["parameters"] or " "))
                             app2 = Runner(env2, os.environ[row2['environment']] + row2["binary"], (row2["parameters"] or " "))
                             prof.start()
@@ -198,7 +219,12 @@ class ConcurrentRunner(DBConnection):
                                         found1 = True
 
                             if(not found1 or not found2):
-                                continue
+                                if len(files) == 2:
+                                    kernel1 = files[0]
+                                    kernel2 = files[1]
+                                else:
+                                    print "arquivos " + str(kernel1) +" e " + str(kernel2) + " nao encontrados"
+                                    continue
 
                             print kernel1
                             print kernel2
@@ -215,27 +241,40 @@ class ConcurrentRunner(DBConnection):
                                 continue                           
 
                             try:
-                                result = None
-                                result = self.evaluateConcurrency(path + kernel1, path + kernel2, row1['mangledName'], row2['mangledName'])
+                                result = self.evaluateConcurrency(path + kernel1, path + kernel2, row1['mangledName'], row2['mangledName'],row1['_id_'], row2['_id_'],step,experiment_id)
                                 if( result is not None):
                                     stepsData.append(result)                                    
                                 
                             except KernelException as e:
                                 
                                 print e
-                                #os.rename(path + kernel1, path + 'histo/' + kernel1)
-                                #os.rename(path + kernel2, path + 'histo/' + kernel2)
-                                os.remove(path + kernel1)
-                                os.remove(path + kernel2)
+                                print "swaping db files for kernel data search"
+
+                                try:
+                                    result = self.evaluateConcurrency(path + kernel2, path + kernel1, row1['mangledName'], row2['mangledName'],row1['_id_'], row2['_id_'],step,experiment_id)
+                                    if( result is not None):
+                                        stepsData.append(result)
+                                except KernelException as e:
+                                    print e
+                                    print "swap failed"
+
+                                cutdb = path +"*.db"
+                                files = glob.glob(path)
+                                for f in files:
+                                    os.remove(f)                                                          
                                 continue
 
-                            #os.rename(path + kernel1, path + 'histo/' + kernel1)
-                            #os.rename(path + kernel2, path + 'histo/' + kernel2)
-                            os.remove(path + kernel1)
-                            os.remove(path + kernel2)
+                            cutdb = path +"*.db"
+                            files = glob.glob(path)
+                            for f in files:
+                                os.remove(f)
+                        
+                        experiment_id += 1
 
-                        self.evaluateMultipleOutputTuples(stepsData,i,j,validationSteps)
-                
+                        #self.evaluateMultipleOutputTuples(stepsData,i,j,validationSteps)
+                for data in stepsData:
+                    self.persistExperiment(data)
+                print "\n\nFINISHED GROUPS " + str(i) + " and " + str(j) + " EXECUTION " + str(datetime.datetime.now()) + "\n\n"
 
                 #self.check_order(path + 'histo/' + kernel1, path + 'histo/' + kernel2, row1['mangledName'], row2['mangledName'])
 
@@ -272,18 +311,20 @@ class ConcurrentRunner(DBConnection):
 
             self.writeTable(newOutputTuple,group1id, group2id, len(outputTupleList), numberOfSteps)
                 
-    """evaluateConcurrency crates a csv file named concurrencyEvaluation.csv where it stores comparison data from a pair of kernels using information of 
-    single run of each kernel and information from both running together. The parameters are the sqlite files generated by nvprof 
+    """evaluateConcurrency get data created by nvprof individual .db files for each application, finds the wanted kernels data by the mangled name and finaly creates an object containing found data.
     
     Args:
         app1concurrentBD (str): path to sqlite file that stores data from concurrent run of application 1 kernel
         app2concurrentBD (str): path to sqlite file that stores data from concurrent run of application 2 kernel
-        ap1singleBD (str): path to sqlite file that stores data logs from the entire application where kernel 1 belongs
-        ap2singleBD (str): path to sqlite file that stores data logs from the entire application where kernel 2 belongs
-        accumulateData (bool) : if true it will just add a new line on a concurrencyEvaluation.csv
+        kernel1Name (str): kernel 1 name 
+        kernel2Name (str): kernel 2 name
+        accumulateData (bool) : kernel 1 id in single execution database table
+        accumulateData (bool) : kernel 2 id in single execution database table
+        try_number (int): attempt number
+        experiment_id (int): experiment identifier
     """
 
-    def evaluateConcurrency(self, app1concurrentBD, app2concurrentBD, kernel1Name, kernel2Name):
+    def evaluateConcurrency(self, app1concurrentBD, app2concurrentBD, kernel1Name, kernel2Name, kernel1id, kernel2id, try_number,experiment_id):
         outputTable = []
 
         #Used to get concurrent run databases
@@ -342,8 +383,7 @@ class ConcurrentRunner(DBConnection):
         kernel1SingEnd = 0.0
         kernel1SingDur = resultSingleDB1[i]['avgTimeFirst']
         kernel1Loss = float(kernel1SingDur) / float(kernel1ConcDur)
-        kernel1data = KernelData(kernel1namef, kernel1ConcStart, kernel1ConcEnd, kernel1ConcDur, kernel1SingStart, kernel1SingEnd, kernel1SingDur, kernel1Loss)
-
+        
         #print str(kernel1data)
 
         kernel2namef = resultSingleDB2[i]['codeName']
@@ -358,20 +398,30 @@ class ConcurrentRunner(DBConnection):
         kernel2SingEnd = 0.0
         kernel2SingDur = resultSingleDB2[i]['avgTimeFirst']
         kernel2Loss = float(kernel2SingDur) / float(kernel2ConcDur)
-        kernel2data = KernelData(kernel2namef, kernel2ConcStart, kernel2ConcEnd, kernel2ConcDur, kernel2SingStart, kernel2SingEnd, kernel2SingDur, kernel2Loss)
+        
 
-        #print str(kernel2data)
+        experimentDuration = max(kernel1ConcEnd,kernel2ConcEnd) - min(kernel1ConcStart,kernel2ConcStart)
+        concurrencyDuration = min(kernel1ConcEnd,kernel2ConcEnd) - max(kernel1ConcStart,kernel2ConcStart)
+        if(concurrencyDuration < 0):
+            concurrencyDuration = 0
+        
+        return ConcurrentExperiment_DB(experiment_id,try_number,kernel1id,kernel2id,kernel1ConcStart,kernel1ConcEnd,kernel2ConcStart,kernel2ConcEnd,experimentDuration,concurrencyDuration)        
 
-        #Verifies if both kernel really ran concurrently, if true it appends on output list
-        if((kernel1ConcStart >= kernel2ConcStart and kernel1ConcStart <= kernel2ConcEnd) or
-           (kernel2ConcStart >= kernel1ConcStart and kernel2ConcStart <= kernel1ConcEnd)):
-            #outputTable.append(OutputTuple(kernel1data, kernel2data))
-            return OutputTuple(kernel1data, kernel2data)
-        else:
-            return None
+    """Persists to database a ConcurrentExperiment_DB object
+    	experimentData(ConcurrentExperiment_DB) : data to be inserted on database
+	
+    """
+    def persistExperiment(self,experimentData):
+        cursor = self.connection.cursor()
+        cursor.execute("""INSERT INTO concurrent_experiment (id_experiment, try_number, id_kernel1, id_kernel2, k1_start, 
+                            k1_end, k2_start, k2_end, total_duration, concurrency_duration) 
+                            VALUES (?,?,?,?,?,?,?,?,?,?); """,
+                            (experimentData.id_experiment, experimentData.try_number, experimentData.id_kernel1, experimentData.id_kernel2,
+                             experimentData.k1_start, experimentData.k1_end, experimentData.k2_start, experimentData.k2_end,
+                             experimentData.total_duration, experimentData.concurrency_duration))
 
-
-
+        self.connection.commit()
+        
         #print "len: " +str(len(outputTable))
         #self.writeTable(outputTable, accumulateData,group1id, group2id)
 
@@ -420,7 +470,23 @@ class OutputTuple():
     @staticmethod
     def getHeader():
         return KernelData.getHeader() + ";" + KernelData.getHeader()
-    
+
+class ConcurrentExperiment_DB():
+
+    def __init__(self, id_experiment, try_number, id_kernel1, id_kernel2, k1_start, k1_end, k2_start, k2_end, total_duration, concurrency_duration):
+        self.id_experiment = id_experiment
+        self.try_number = try_number
+        self.id_kernel1 = id_kernel1
+        self.id_kernel2 = id_kernel2
+        self.k1_start = k1_start
+        self.k1_end = k1_end
+        self.k2_start = k2_start
+        self.k2_end = k2_end
+        self.total_duration = total_duration
+        self.concurrency_duration = concurrency_duration
+            
 
 runner = ConcurrentRunner()
 runner.run()
+
+
